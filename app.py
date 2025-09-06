@@ -4,6 +4,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import silhouette_score
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 st.set_page_config(page_title="Clustering Aset", layout="wide")
 st.title("🔍 Clustering Aset Tetap (Segmentasi)")
@@ -25,7 +26,7 @@ if uploaded_file is not None:
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    # Tentukan jumlah cluster optimal (Elbow)
+    # Tentukan jumlah cluster optimal (Elbow Method)
     inertia = []
     K = range(2, 8)
     for k in K:
@@ -45,21 +46,51 @@ if uploaded_file is not None:
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
     df["Cluster"] = kmeans.fit_predict(X_scaled)
 
-    st.subheader("📊 Hasil Clustering")
-    st.dataframe(df[["Jenis_Aktiva_Tetap"] + fitur + ["Cluster"]].head(20))
+    # Mapping cluster ke nama segmen (contoh awal)
+    label_map = {i: f"Segmen {i}" for i in range(n_clusters)}
+    df["Cluster_Label"] = df["Cluster"].map(label_map)
 
-    # Visualisasi 2D (pakai 2 fitur utama)
-    fig2, ax2 = plt.subplots()
-    scatter = ax2.scatter(X_scaled[:,0], X_scaled[:,1], c=df["Cluster"], cmap="viridis", alpha=0.7)
+    # -------------------------
+    # 📊 Ringkasan per Cluster
+    # -------------------------
+    st.subheader("📌 Ringkasan per Cluster")
+    summary = df.groupby("Cluster_Label").agg({
+        "Jenis_Aktiva_Tetap": "count",
+        "Nilai_Perolehan": "sum",
+        "Masa_Manfaat_Tahun": "mean",
+        "Biaya_Penyusutan_Bulan": "mean"
+    }).rename(columns={
+        "Jenis_Aktiva_Tetap": "Jumlah Aset",
+        "Nilai_Perolehan": "Total Nilai Perolehan",
+        "Masa_Manfaat_Tahun": "Rata-rata Masa Manfaat",
+        "Biaya_Penyusutan_Bulan": "Rata-rata Biaya Penyusutan"
+    })
+    st.dataframe(summary)
+
+    # -------------------------
+    # 📊 Hasil Clustering Detail
+    # -------------------------
+    st.subheader("📊 Detail Hasil Clustering")
+    st.dataframe(df[["Jenis_Aktiva_Tetap"] + fitur + ["Cluster_Label"]].head(20))
+
+    # -------------------------
+    # 📈 Visualisasi Clustering
+    # -------------------------
+    st.subheader("📈 Visualisasi Clustering (2D)")
+
+    fig2, ax2 = plt.subplots(figsize=(8,6))
+    sns.scatterplot(
+        x=X_scaled[:,0], y=X_scaled[:,1],
+        hue=df["Cluster_Label"], palette="tab10", s=60, ax=ax2
+    )
     ax2.set_xlabel(fitur[0])
     ax2.set_ylabel(fitur[1])
-    ax2.set_title("Visualisasi Clustering (2 Fitur)")
-    plt.colorbar(scatter, ax=ax2, label="Cluster")
+    ax2.set_title("Visualisasi Clustering Aset")
     st.pyplot(fig2)
 
     # Evaluasi dengan silhouette score
     score = silhouette_score(X_scaled, df["Cluster"])
-    st.success(f"Silhouette Score: {score:.3f}")
+    st.success(f"📊 Silhouette Score: {score:.3f} (semakin mendekati 1 semakin baik)")
 
 else:
     st.info("⬅️ Upload dataset Excel bersih untuk mulai clustering.")
