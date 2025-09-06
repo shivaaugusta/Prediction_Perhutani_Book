@@ -1,21 +1,14 @@
 import streamlit as st
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score
-import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_score
 import matplotlib.pyplot as plt
 
-# -------------------------------
-# Konfigurasi App
-# -------------------------------
-st.set_page_config(page_title="Prediksi Nilai Buku Aset", layout="wide")
-st.title("📊 Prediksi Nilai Buku Aset Tetap Menggunakan Machine Learning")
+st.set_page_config(page_title="Clustering Aset", layout="wide")
+st.title("🔍 Clustering Aset Tetap (Segmentasi)")
 
-# -------------------------------
 # Upload dataset
-# -------------------------------
 uploaded_file = st.file_uploader("Upload Dataset Bersih (.xlsx)", type=["xlsx"])
 
 if uploaded_file is not None:
@@ -24,65 +17,49 @@ if uploaded_file is not None:
     st.subheader("📂 Preview Dataset")
     st.dataframe(df.head())
 
-    # -------------------------------
-    # Pilih fitur dan target
-    # -------------------------------
-    fitur = [
-        'Tahun_Perolehan','Masa_Manfaat_Tahun','Tarif_Penyusutan',
-        'Nilai_Perolehan','Biaya_Penyusutan_Bulan',
-        'Biaya_Penyusutan_Sampai_Bulan','Akumulasi_Penyusutan'
-    ]
+    # Pilih fitur numerik untuk clustering
+    fitur = ["Nilai_Perolehan", "Masa_Manfaat_Tahun", "Biaya_Penyusutan_Bulan"]
     X = df[fitur]
-    y = df['Nilai_Buku_Bulan_Ini']
 
-    # -------------------------------
-    # Split data
-    # -------------------------------
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
+    # Normalisasi
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
 
-    # -------------------------------
-    # Pilih model
-    # -------------------------------
-    model_option = st.radio("Pilih Algoritma:", ["Linear Regression", "Random Forest"])
-
-    if model_option == "Linear Regression":
-        model = LinearRegression()
-    else:
-        model = RandomForestRegressor(random_state=42, n_estimators=100)
-
-    # -------------------------------
-    # Training model
-    # -------------------------------
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-
-    # -------------------------------
-    # Evaluasi
-    # -------------------------------
-    mse = mean_squared_error(y_test, y_pred)
-    rmse = np.sqrt(mse)
-    r2 = r2_score(y_test, y_pred)
-
-    col1, col2 = st.columns(2)
-    col1.metric("📉 RMSE", f"{rmse:,.0f}")
-    col2.metric("📈 R² Score", f"{r2:.3f}")
-
-    # -------------------------------
-    # Hasil Prediksi vs Aktual
-    # -------------------------------
-    st.subheader("🔍 Hasil Prediksi vs Aktual (Sample)")
-    hasil = pd.DataFrame({'Aktual': y_test, 'Prediksi': y_pred})
-    st.dataframe(hasil.head(10))
+    # Tentukan jumlah cluster optimal (Elbow)
+    inertia = []
+    K = range(2, 8)
+    for k in K:
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        kmeans.fit(X_scaled)
+        inertia.append(kmeans.inertia_)
 
     fig, ax = plt.subplots()
-    ax.scatter(y_test, y_pred, alpha=0.6)
-    ax.plot([y.min(), y.max()], [y.min(), y.max()], 'r--')
-    ax.set_xlabel("Aktual")
-    ax.set_ylabel("Prediksi")
-    ax.set_title("Aktual vs Prediksi Nilai Buku")
+    ax.plot(K, inertia, "bo-")
+    ax.set_xlabel("Jumlah Cluster (k)")
+    ax.set_ylabel("Inertia")
+    ax.set_title("Elbow Method")
     st.pyplot(fig)
 
+    # Input jumlah cluster
+    n_clusters = st.slider("Pilih jumlah cluster:", 2, 6, 3)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    df["Cluster"] = kmeans.fit_predict(X_scaled)
+
+    st.subheader("📊 Hasil Clustering")
+    st.dataframe(df[["Jenis_Aktiva_Tetap"] + fitur + ["Cluster"]].head(20))
+
+    # Visualisasi 2D (pakai 2 fitur utama)
+    fig2, ax2 = plt.subplots()
+    scatter = ax2.scatter(X_scaled[:,0], X_scaled[:,1], c=df["Cluster"], cmap="viridis", alpha=0.7)
+    ax2.set_xlabel(fitur[0])
+    ax2.set_ylabel(fitur[1])
+    ax2.set_title("Visualisasi Clustering (2 Fitur)")
+    plt.colorbar(scatter, ax=ax2, label="Cluster")
+    st.pyplot(fig2)
+
+    # Evaluasi dengan silhouette score
+    score = silhouette_score(X_scaled, df["Cluster"])
+    st.success(f"Silhouette Score: {score:.3f}")
+
 else:
-    st.info("⬅️ Silakan upload file dataset bersih (.xlsx)")
+    st.info("⬅️ Upload dataset Excel bersih untuk mulai clustering.")
