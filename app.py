@@ -58,25 +58,35 @@ if uploaded_file is not None:
     st.subheader("📊 Hasil Clustering")
     st.dataframe(df[["Jenis_Aktiva_Tetap"] + fitur + ["Cluster"]].head(20))
 
-    # ---------------- Visualisasi 2D ----------------
+   # ---------------- Visualisasi 2D ----------------
     st.subheader("🎨 Visualisasi Clustering (2 Fitur)")
+    
     fig2, ax2 = plt.subplots()
     scatter = ax2.scatter(
         X_scaled[:, 0], X_scaled[:, 1],
         c=df["Cluster"], cmap="viridis", alpha=0.7
     )
+    
     ax2.set_xlabel(fitur[0])
     ax2.set_ylabel(fitur[1])
     ax2.set_title("Clustering Berdasarkan 2 Fitur")
-    plt.colorbar(scatter, ax=ax2, label="Cluster")
+    
+    # Tambahkan legend untuk tiap cluster
+    for cluster_id in sorted(df["Cluster"].unique()):
+        ax2.scatter([], [], c=scatter.cmap(scatter.norm(cluster_id)),
+                    label=f"Cluster {cluster_id}")
+    
+    ax2.legend(title="Segmen Aset", bbox_to_anchor=(1.05, 1), loc="upper left")
+    
     st.pyplot(fig2)
-
+    
     st.markdown(
         """
         ✨ **Cara membaca visualisasi:**  
         - Setiap titik = 1 aset.  
-        - Warna berbeda = cluster berbeda.  
-        - Sumbu X = Nilai Perolehan (dinormalisasi), Sumbu Y = Masa Manfaat Tahun.  
+        - Warna berbeda = cluster berbeda (lihat legend → segmen aset).  
+        - Sumbu X = Nilai Perolehan (dinormalisasi).  
+        - Sumbu Y = Masa Manfaat Tahun (dinormalisasi).  
         - Kalau warna terpisah jelas → clustering efektif.  
         """
     )
