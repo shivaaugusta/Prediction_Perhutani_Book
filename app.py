@@ -25,7 +25,7 @@ if uploaded_file is not None:
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    # Tentukan jumlah cluster optimal (Elbow)
+    # ---------------- Elbow Method ----------------
     inertia = []
     K = range(2, 8)
     for k in K:
@@ -36,58 +36,68 @@ if uploaded_file is not None:
     fig, ax = plt.subplots()
     ax.plot(K, inertia, "bo-")
     ax.set_xlabel("Jumlah Cluster (k)")
-    ax.set_ylabel("Inertia")
+    ax.set_ylabel("Inertia (Total Jarak ke Pusat Cluster)")
     ax.set_title("Elbow Method")
     st.pyplot(fig)
 
-    # Input jumlah cluster
-    n_clusters = st.slider("Pilih jumlah cluster:", 2, 6, 3)
+    # Narasi otomatis untuk membantu user
+    st.markdown(
+        """
+        ℹ️ **Cara membaca grafik Elbow Method**:  
+        - Grafik akan selalu menurun, karena semakin banyak cluster → data makin terpisah.  
+        - Pilih jumlah cluster di **titik siku (elbow)**, yaitu saat grafik mulai melandai.  
+        - Dari grafik di atas, kemungkinan elbow ada di sekitar **k=3 atau k=4**.  
+        """
+    )
+
+    # ---------------- Clustering ----------------
+    n_clusters = st.slider("👉 Pilih jumlah cluster:", 2, 6, 3)
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
     df["Cluster"] = kmeans.fit_predict(X_scaled)
 
     st.subheader("📊 Hasil Clustering")
     st.dataframe(df[["Jenis_Aktiva_Tetap"] + fitur + ["Cluster"]].head(20))
 
-    # Visualisasi 2D (pakai 2 fitur utama)
+    # ---------------- Visualisasi 2D ----------------
+    st.subheader("🎨 Visualisasi Clustering (2 Fitur)")
     fig2, ax2 = plt.subplots()
-    scatter = ax2.scatter(X_scaled[:,0], X_scaled[:,1], c=df["Cluster"], cmap="viridis", alpha=0.7)
+    scatter = ax2.scatter(
+        X_scaled[:, 0], X_scaled[:, 1],
+        c=df["Cluster"], cmap="viridis", alpha=0.7
+    )
     ax2.set_xlabel(fitur[0])
     ax2.set_ylabel(fitur[1])
-    ax2.set_title("Visualisasi Clustering (2 Fitur)")
+    ax2.set_title("Clustering Berdasarkan 2 Fitur")
     plt.colorbar(scatter, ax=ax2, label="Cluster")
     st.pyplot(fig2)
 
-    # Evaluasi dengan silhouette score
-    score = silhouette_score(X_scaled, df["Cluster"])
-    st.success(f"Silhouette Score: {score:.3f}")
+    st.markdown(
+        """
+        ✨ **Cara membaca visualisasi:**  
+        - Setiap titik = 1 aset.  
+        - Warna berbeda = cluster berbeda.  
+        - Sumbu X = Nilai Perolehan (dinormalisasi), Sumbu Y = Masa Manfaat Tahun.  
+        - Kalau warna terpisah jelas → clustering efektif.  
+        """
+    )
 
-    # ===============================
-    # 🔎 Ringkasan & Interpretasi
-    # ===============================
-    st.subheader("📊 Ringkasan Statistik per Cluster")
+    # ---------------- Ringkasan Statistik ----------------
+    st.subheader("📌 Ringkasan Statistik per Cluster")
     cluster_summary = df.groupby("Cluster")[fitur].mean().round(2)
     st.dataframe(cluster_summary)
 
-    st.subheader("📝 Interpretasi Cluster")
-    for c in cluster_summary.index:
-        avg_val = cluster_summary.loc[c, "Nilai_Perolehan"]
-        avg_manfaat = cluster_summary.loc[c, "Masa_Manfaat_Tahun"]
-        avg_penyusutan = cluster_summary.loc[c, "Biaya_Penyusutan_Bulan"]
+    st.markdown(
+        """
+        ✨ **Interpretasi contoh** (bisa berbeda tergantung dataset):  
+        - Cluster dengan **Nilai Perolehan tinggi & Penyusutan rendah** biasanya = tanah/gedung.  
+        - Cluster dengan **Masa Manfaat pendek & Penyusutan kecil** = peralatan kecil.  
+        - Cluster dengan **Nilai Perolehan sedang & Penyusutan rutin** = kendaraan/mesin.  
+        """
+    )
 
-        if avg_val < 1e8:
-            tipe = "Aset bernilai kecil (peralatan kantor, inventaris sederhana)"
-        elif avg_val < 1e9:
-            tipe = "Aset menengah (kendaraan, mesin kecil)"
-        else:
-            tipe = "Aset bernilai sangat besar (tanah, gedung)"
-
-        st.markdown(f"""
-        **Cluster {c}**  
-        - 📌 Rata-rata Nilai Perolehan: Rp {avg_val:,.0f}  
-        - ⏳ Rata-rata Masa Manfaat: {avg_manfaat:.1f} tahun  
-        - 💸 Rata-rata Biaya Penyusutan Bulanan: Rp {avg_penyusutan:,.0f}  
-        - ✅ **Interpretasi:** {tipe}
-        """)
+    # ---------------- Evaluasi ----------------
+    score = silhouette_score(X_scaled, df["Cluster"])
+    st.success(f"📈 Silhouette Score: {score:.3f} → semakin dekat ke 1, semakin baik pemisahan cluster.")
 
 else:
     st.info("⬅️ Upload dataset Excel bersih untuk mulai clustering.")
